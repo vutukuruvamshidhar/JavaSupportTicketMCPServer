@@ -1,31 +1,38 @@
 package com.supportticket.mcpserver;
 
-import com.supportticket.mcpserver.dto.Assignee;
-import com.supportticket.mcpserver.service.AzureGraphClient;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import com.supportticket.mcpserver.service.KeycloakUserService;
+import org.mockito.Mockito;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
-
-import java.util.Collections;
-import java.util.List;
+import org.springframework.context.annotation.Primary;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 
 /**
- * Test-only Spring configuration that registers stub beans needed to start the
- * full application context in {@code @SpringBootTest} tests without real
- * external dependencies.
+ * Test-only Spring configuration that stubs external dependencies so the full
+ * application context can start without live external services.
+ *
+ * <p>{@link JwtDecoder} is replaced with a no-op mock to prevent
+ * spring-boot-starter-oauth2-resource-server from fetching the Keycloak JWKS
+ * endpoint at startup. {@link KeycloakUserService} is mocked so no real
+ * Keycloak server is required for user-lookup calls.</p>
  */
 @TestConfiguration
 class TestConfig {
 
+    @Bean
+    @Primary
+    KeycloakUserService keycloakUserService() {
+        return Mockito.mock(KeycloakUserService.class);
+    }
+
     /**
-     * Provides a no-op {@link AzureGraphClient} bean when no real implementation
-     * is present (i.e. Azure credentials are not configured in the test environment).
-     *
-     * @return a stub that always returns an empty list
+     * Overrides the auto-configured {@link JwtDecoder} so that the resource
+     * server does not attempt to resolve the issuer URI (and fetch JWKS from
+     * Keycloak) during context startup.
      */
     @Bean
-    @ConditionalOnMissingBean(AzureGraphClient.class)
-    AzureGraphClient stubAzureGraphClient() {
-        return displayName -> Collections.emptyList();
+    @Primary
+    JwtDecoder jwtDecoder() {
+        return Mockito.mock(JwtDecoder.class);
     }
 }

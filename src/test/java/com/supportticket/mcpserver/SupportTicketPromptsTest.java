@@ -1,40 +1,54 @@
 package com.supportticket.mcpserver;
 
 import com.supportticket.mcpserver.prompts.SupportTicketPrompts;
+import com.supportticket.mcpserver.service.McpAccessService;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
 
-/**
- * Unit tests for {@link SupportTicketPrompts}.
- *
- * <p>Verifies that the MCP prompt method correctly reads the prompt file from
- * the classpath and returns a well-formed {@link McpSchema.GetPromptResult}.</p>
- */
+@ExtendWith(MockitoExtension.class)
 class SupportTicketPromptsTest {
+
+    @Mock
+    private McpAccessService mcpAccessService;
 
     private SupportTicketPrompts prompts;
 
-    /**
-     * Creates a fresh {@link SupportTicketPrompts} instance before each test.
-     */
     @BeforeEach
     void setUp() {
-        prompts = new SupportTicketPrompts();
+        prompts = new SupportTicketPrompts(mcpAccessService);
     }
 
-    /**
-     * Verifies that the returned result is non-null, carries the expected
-     * description, contains exactly one {@code USER} message, and that the
-     * message text exactly matches the contents of {@code ticket_creation_prompt.txt}.
-     */
+    // -----------------------------------------------------------------------
+    // Access control
+    // -----------------------------------------------------------------------
+
+    @Test
+    void createAndAssignTicketPrompt_throwsAccessDenied_whenAccessCheckFails() {
+        doThrow(new AccessDeniedException("access_prompts not granted"))
+                .when(mcpAccessService).requirePromptAccess();
+
+        assertThatThrownBy(() -> prompts.createAndAssignTicketPrompt())
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    // -----------------------------------------------------------------------
+    // Happy path
+    // -----------------------------------------------------------------------
+
     @Test
     void createAndAssignTicketPrompt_returnsPromptResultWithFileContents() throws IOException {
         McpSchema.GetPromptResult result = prompts.createAndAssignTicketPrompt();
@@ -53,9 +67,6 @@ class SupportTicketPromptsTest {
         assertThat(((McpSchema.TextContent) message.content()).text()).isEqualTo(expectedContent);
     }
 
-    /**
-     * Sanity check that the loaded prompt text is not blank.
-     */
     @Test
     void createAndAssignTicketPrompt_promptContentIsNotBlank() throws IOException {
         McpSchema.GetPromptResult result = prompts.createAndAssignTicketPrompt();
@@ -63,5 +74,4 @@ class SupportTicketPromptsTest {
         String text = ((McpSchema.TextContent) result.messages().getFirst().content()).text();
         assertThat(text).isNotBlank();
     }
-
 }

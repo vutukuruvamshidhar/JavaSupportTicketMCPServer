@@ -3,6 +3,7 @@ package com.supportticket.mcpserver;
 import com.supportticket.mcpserver.apiclient.TicketApiClient;
 import com.supportticket.mcpserver.dto.Ticket;
 import com.supportticket.mcpserver.exception.TicketCreationException;
+import com.supportticket.mcpserver.service.McpAccessService;
 import com.supportticket.mcpserver.tools.TicketCreationTool;
 import feign.FeignException;
 import feign.Request;
@@ -12,6 +13,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -19,7 +21,9 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -34,11 +38,14 @@ class TicketCreationToolTest {
     @Mock
     private TicketApiClient ticketApiClient;
 
+    @Mock
+    private McpAccessService mcpAccessService;
+
     private TicketCreationTool tool;
 
     @BeforeEach
     void setUp() {
-        tool = new TicketCreationTool(ticketApiClient);
+        tool = new TicketCreationTool(ticketApiClient, mcpAccessService);
     }
 
     // -----------------------------------------------------------------------
@@ -146,6 +153,23 @@ class TicketCreationToolTest {
                 .isInstanceOf(TicketCreationException.class)
                 .hasMessageContaining("503")
                 .hasCause(feignException);
+    }
+
+    // -----------------------------------------------------------------------
+    // Access control
+    // -----------------------------------------------------------------------
+
+    @Test
+    void createTicket_throwsAccessDenied_whenAccessCheckFails() {
+        doThrow(new AccessDeniedException("access_tools not granted"))
+                .when(mcpAccessService).requireToolAccess();
+
+        assertThatThrownBy(() -> tool.createTicket(
+                "Jane Doe", "Printer not working", "Acme Corp",
+                2, "Bob Support", "bob@support.com"))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verifyNoInteractions(ticketApiClient);
     }
 
     // -----------------------------------------------------------------------

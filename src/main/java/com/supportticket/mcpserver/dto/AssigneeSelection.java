@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  */
 public class AssigneeSelection {
 
-    /** Azure Entra ID object ID (GUID) of the chosen assignee. */
+    /** Unique ID of the chosen assignee. */
     @JsonProperty(required = true)
     private String selectedId;
 
@@ -24,38 +24,18 @@ public class AssigneeSelection {
     /** No-arg constructor required for Jackson deserialisation. */
     public AssigneeSelection() {}
 
-    /**
-     * Returns the Azure Entra ID object ID of the selected assignee.
-     *
-     * @return the selected object ID
-     */
     public String getSelectedId() {
         return selectedId;
     }
 
-    /**
-     * Sets the Azure Entra ID object ID of the selected assignee.
-     *
-     * @param selectedId the object ID to set
-     */
     public void setSelectedId(String selectedId) {
         this.selectedId = selectedId;
     }
 
-    /**
-     * Returns the display name of the selected assignee.
-     *
-     * @return the selected display name
-     */
     public String getSelectedName() {
         return selectedName;
     }
 
-    /**
-     * Sets the display name of the selected assignee.
-     *
-     * @param selectedName the display name to set
-     */
     public void setSelectedName(String selectedName) {
         this.selectedName = selectedName;
     }

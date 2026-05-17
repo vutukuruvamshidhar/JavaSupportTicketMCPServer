@@ -1,5 +1,6 @@
 package com.supportticket.mcpserver.prompts;
 
+import com.supportticket.mcpserver.service.McpAccessService;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +24,12 @@ public class SupportTicketPrompts {
 
     private static final Logger log = LoggerFactory.getLogger(SupportTicketPrompts.class);
 
+    private final McpAccessService mcpAccessService;
+
+    public SupportTicketPrompts(McpAccessService mcpAccessService) {
+        this.mcpAccessService = mcpAccessService;
+    }
+
     /**
      * Returns the prompt that instructs an AI assistant to create and assign a
      * support ticket using the available MCP tools.
@@ -41,6 +48,7 @@ public class SupportTicketPrompts {
             description = "Guides the AI to create a new support ticket and assign it to a team member"
     )
     public McpSchema.GetPromptResult createAndAssignTicketPrompt() throws IOException {
+        mcpAccessService.requirePromptAccess();
         String userMessage = new ClassPathResource("ticket_creation_prompt.txt")
                 .getContentAsString(StandardCharsets.UTF_8);
 

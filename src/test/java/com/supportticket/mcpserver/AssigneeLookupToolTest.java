@@ -2,7 +2,8 @@ package com.supportticket.mcpserver;
 
 import com.supportticket.mcpserver.dto.Assignee;
 import com.supportticket.mcpserver.dto.AssigneeSelection;
-import com.supportticket.mcpserver.service.AzureGraphClient;
+import com.supportticket.mcpserver.service.KeycloakUserService;
+import com.supportticket.mcpserver.service.McpAccessService;
 import com.supportticket.mcpserver.tools.AssigneeLookupTool;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,14 +15,18 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springaicommunity.mcp.context.McpSyncRequestContext;
 import org.springaicommunity.mcp.context.StructuredElicitResult;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+
+import org.springframework.security.access.AccessDeniedException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -30,13 +35,17 @@ import static org.mockito.Mockito.when;
  * Unit tests for {@link AssigneeLookupTool}.
  *
  * <p>Covers single-match, multi-match (elicitation accept / decline / cancel),
- * and no-match scenarios without a live Azure connection.</p>
+ * and no-match scenarios. {@link KeycloakUserService} is mocked so no real
+ * Keycloak server is required.</p>
  */
 @ExtendWith(MockitoExtension.class)
 class AssigneeLookupToolTest {
 
     @Mock
-    private AzureGraphClient azureGraphClient;
+    private KeycloakUserService keycloakUserService;
+
+    @Mock
+    private McpAccessService mcpAccessService;
 
     @Mock
     private McpSyncRequestContext context;
@@ -45,23 +54,34 @@ class AssigneeLookupToolTest {
 
     @BeforeEach
     void setUp() {
-        tool = new AssigneeLookupTool(azureGraphClient);
+        tool = new AssigneeLookupTool(keycloakUserService, mcpAccessService);
+    }
+
+    // -----------------------------------------------------------------------
+    // Access control
+    // -----------------------------------------------------------------------
+
+    @Test
+    void lookupAssignee_throwsAccessDenied_whenAccessCheckFails() {
+        doThrow(new AccessDeniedException("access_tools not granted"))
+                .when(mcpAccessService).requireToolAccess();
+
+        assertThatThrownBy(() -> tool.lookupAssignee("Joe", context))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verifyNoInteractions(keycloakUserService, context);
     }
 
     // -----------------------------------------------------------------------
     // Single match
     // -----------------------------------------------------------------------
 
-    /**
-     * When exactly one user matches the name, the assignee is returned directly
-     * without triggering elicitation.
-     */
-    //@Test
+    @Test
     void lookupAssignee_returnsSingleMatchWithoutElicitation() {
         Assignee alice = new Assignee("id-001", "Alice Smith", "alice@example.com");
-        when(azureGraphClient.findByDisplayName("Alice Smith")).thenReturn(List.of(alice));
+        when(keycloakUserService.findUsersByFirstName("Alice")).thenReturn(List.of(alice));
 
-        Assignee result = tool.lookupAssignee("Alice Smith", context);
+        Assignee result = tool.lookupAssignee("Alice", context);
 
         assertThat(result.getId()).isEqualTo("id-001");
         assertThat(result.getDisplayName()).isEqualTo("Alice Smith");
@@ -73,14 +93,11 @@ class AssigneeLookupToolTest {
     // No match
     // -----------------------------------------------------------------------
 
-    /**
-     * When no user matches the name, an {@link IllegalArgumentException} is thrown.
-     */
-    //@Test
+    @Test
     void lookupAssignee_throwsWhenNoMatchFound() {
-        when(azureGraphClient.findByDisplayName("Unknown User")).thenReturn(List.of());
+        when(keycloakUserService.findUsersByFirstName("Unknown")).thenReturn(Collections.emptyList());
 
-        assertThatThrownBy(() -> tool.lookupAssignee("Unknown User", context))
+        assertThatThrownBy(() -> tool.lookupAssignee("Unknown", context))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("No user found");
     }
@@ -89,20 +106,16 @@ class AssigneeLookupToolTest {
     // Multiple matches – elicitation accepted
     // -----------------------------------------------------------------------
 
-    /**
-     * When multiple users share the same name, elicitation is triggered.
-     * When the user accepts and provides a valid ID the matching assignee is returned.
-     */
-    //@Test
+    @Test
     @SuppressWarnings("unchecked")
     void lookupAssignee_returnsSelectedAssigneeOnElicitationAccept() {
-        Assignee alice1 = new Assignee("id-001", "Alice Smith", "alice1@example.com");
-        Assignee alice2 = new Assignee("id-002", "Alice Smith", "alice2@example.com");
-        when(azureGraphClient.findByDisplayName("Alice Smith")).thenReturn(List.of(alice1, alice2));
+        Assignee joe1 = new Assignee("123", "Joe Smith", "joe.smith@abcd.com");
+        Assignee joe2 = new Assignee("345", "Joe Smiths", "joe.smiths@abcd.com");
+        when(keycloakUserService.findUsersByFirstName("Joe")).thenReturn(List.of(joe1, joe2));
 
         AssigneeSelection selection = new AssigneeSelection();
-        selection.setSelectedId("id-002");
-        selection.setSelectedName("Alice Smith");
+        selection.setSelectedId("345");
+        selection.setSelectedName("Joe Smiths");
 
         StructuredElicitResult<AssigneeSelection> elicitResult = new StructuredElicitResult<>(
                 McpSchema.ElicitResult.Action.ACCEPT, selection, Map.of());
@@ -110,25 +123,22 @@ class AssigneeLookupToolTest {
         when(context.elicit(any(Consumer.class), eq(AssigneeSelection.class)))
                 .thenReturn(elicitResult);
 
-        Assignee result = tool.lookupAssignee("Alice Smith", context);
+        Assignee result = tool.lookupAssignee("Joe", context);
 
-        assertThat(result.getId()).isEqualTo("id-002");
-        assertThat(result.getEmail()).isEqualTo("alice2@example.com");
+        assertThat(result.getId()).isEqualTo("345");
+        assertThat(result.getEmail()).isEqualTo("joe.smiths@abcd.com");
     }
 
-    /**
-     * Verifies the elicitation message lists all candidates with their IDs and emails.
-     */
-    //@Test
+    @Test
     @SuppressWarnings("unchecked")
     void lookupAssignee_elicitationMessageContainsAllCandidates() {
-        Assignee alice1 = new Assignee("id-001", "Alice Smith", "alice1@example.com");
-        Assignee alice2 = new Assignee("id-002", "Alice Smith", "alice2@example.com");
-        when(azureGraphClient.findByDisplayName("Alice Smith")).thenReturn(List.of(alice1, alice2));
+        Assignee joe1 = new Assignee("123", "Joe Smith", "joe.smith@abcd.com");
+        Assignee joe2 = new Assignee("345", "Joe Smiths", "joe.smiths@abcd.com");
+        when(keycloakUserService.findUsersByFirstName("Joe")).thenReturn(List.of(joe1, joe2));
 
         AssigneeSelection selection = new AssigneeSelection();
-        selection.setSelectedId("id-001");
-        selection.setSelectedName("Alice Smith");
+        selection.setSelectedId("123");
+        selection.setSelectedName("Joe Smith");
 
         StructuredElicitResult<AssigneeSelection> elicitResult = new StructuredElicitResult<>(
                 McpSchema.ElicitResult.Action.ACCEPT, selection, Map.of());
@@ -139,7 +149,7 @@ class AssigneeLookupToolTest {
         when(context.elicit(specCaptor.capture(), eq(AssigneeSelection.class)))
                 .thenReturn(elicitResult);
 
-        tool.lookupAssignee("Alice Smith", context);
+        tool.lookupAssignee("Joe", context);
 
         verify(context).elicit(any(Consumer.class), eq(AssigneeSelection.class));
     }
@@ -148,15 +158,12 @@ class AssigneeLookupToolTest {
     // Multiple matches – elicitation declined or cancelled
     // -----------------------------------------------------------------------
 
-    /**
-     * When the user declines the elicitation, an {@link IllegalStateException} is thrown.
-     */
-    //@Test
+    @Test
     @SuppressWarnings("unchecked")
     void lookupAssignee_throwsWhenElicitationDeclined() {
-        Assignee alice1 = new Assignee("id-001", "Alice Smith", "alice1@example.com");
-        Assignee alice2 = new Assignee("id-002", "Alice Smith", "alice2@example.com");
-        when(azureGraphClient.findByDisplayName("Alice Smith")).thenReturn(List.of(alice1, alice2));
+        Assignee joe1 = new Assignee("123", "Joe Smith", "joe.smith@abcd.com");
+        Assignee joe2 = new Assignee("345", "Joe Smiths", "joe.smiths@abcd.com");
+        when(keycloakUserService.findUsersByFirstName("Joe")).thenReturn(List.of(joe1, joe2));
 
         StructuredElicitResult<AssigneeSelection> elicitResult = new StructuredElicitResult<>(
                 McpSchema.ElicitResult.Action.DECLINE, null, Map.of());
@@ -164,20 +171,17 @@ class AssigneeLookupToolTest {
         when(context.elicit(any(Consumer.class), eq(AssigneeSelection.class)))
                 .thenReturn(elicitResult);
 
-        assertThatThrownBy(() -> tool.lookupAssignee("Alice Smith", context))
+        assertThatThrownBy(() -> tool.lookupAssignee("Joe", context))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("decline");
     }
 
-    /**
-     * When the user cancels the elicitation, an {@link IllegalStateException} is thrown.
-     */
-    //@Test
+    @Test
     @SuppressWarnings("unchecked")
     void lookupAssignee_throwsWhenElicitationCancelled() {
-        Assignee alice1 = new Assignee("id-001", "Alice Smith", "alice1@example.com");
-        Assignee alice2 = new Assignee("id-002", "Alice Smith", "alice2@example.com");
-        when(azureGraphClient.findByDisplayName("Alice Smith")).thenReturn(List.of(alice1, alice2));
+        Assignee joe1 = new Assignee("123", "Joe Smith", "joe.smith@abcd.com");
+        Assignee joe2 = new Assignee("345", "Joe Smiths", "joe.smiths@abcd.com");
+        when(keycloakUserService.findUsersByFirstName("Joe")).thenReturn(List.of(joe1, joe2));
 
         StructuredElicitResult<AssigneeSelection> elicitResult = new StructuredElicitResult<>(
                 McpSchema.ElicitResult.Action.CANCEL, null, Map.of());
@@ -185,7 +189,7 @@ class AssigneeLookupToolTest {
         when(context.elicit(any(Consumer.class), eq(AssigneeSelection.class)))
                 .thenReturn(elicitResult);
 
-        assertThatThrownBy(() -> tool.lookupAssignee("Alice Smith", context))
+        assertThatThrownBy(() -> tool.lookupAssignee("Joe", context))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("cancel");
     }

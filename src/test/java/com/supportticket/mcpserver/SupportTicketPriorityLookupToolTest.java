@@ -3,16 +3,21 @@ package com.supportticket.mcpserver;
 import com.supportticket.mcpserver.dto.CompanyPriority;
 import com.supportticket.mcpserver.dto.PriorityResponse;
 import com.supportticket.mcpserver.repository.SupportTicketRepo;
+import com.supportticket.mcpserver.service.McpAccessService;
 import com.supportticket.mcpserver.tools.SupportTicketPriorityLookupTool;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -28,15 +33,14 @@ class SupportTicketPriorityLookupToolTest {
     @Mock
     private SupportTicketRepo supportTicketRepo;
 
+    @Mock
+    private McpAccessService mcpAccessService;
+
     private SupportTicketPriorityLookupTool tool;
 
-    /**
-     * Creates a fresh {@link SupportTicketPriorityLookupTool} with the mocked repository
-     * before each test.
-     */
     @BeforeEach
     void setUp() {
-        tool = new SupportTicketPriorityLookupTool(supportTicketRepo);
+        tool = new SupportTicketPriorityLookupTool(supportTicketRepo, mcpAccessService);
     }
 
     /**
@@ -69,5 +73,16 @@ class SupportTicketPriorityLookupToolTest {
 
         assertThat(response).isNotNull();
         assertThat(response.getPriority()).isEqualTo(3);
+    }
+
+    @Test
+    void lookupPriority_throwsAccessDenied_whenAccessCheckFails() {
+        doThrow(new AccessDeniedException("access_tools not granted"))
+                .when(mcpAccessService).requireToolAccess();
+
+        assertThatThrownBy(() -> tool.lookupPriority("Acme Corp"))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verifyNoInteractions(supportTicketRepo);
     }
 }

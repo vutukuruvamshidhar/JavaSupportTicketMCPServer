@@ -1,5 +1,6 @@
 package com.supportticket.mcpserver.resources;
 
+import com.supportticket.mcpserver.service.McpAccessService;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,6 +25,12 @@ public class SupportTicketResource {
 
     private static final Logger log = LoggerFactory.getLogger(SupportTicketResource.class);
 
+    private final McpAccessService mcpAccessService;
+
+    public SupportTicketResource(McpAccessService mcpAccessService) {
+        this.mcpAccessService = mcpAccessService;
+    }
+
     /**
      * Returns the ticket creation template as an MCP resource.
      *
@@ -45,6 +52,7 @@ public class SupportTicketResource {
     )
     public McpSchema.ReadResourceResult getTicketCreationTemplate() throws IOException {
         log.info("*********Resources called***********");
+        mcpAccessService.requireTemplateAccess();
         String content = new ClassPathResource("ticket_creation_template.txt")
                 .getContentAsString(StandardCharsets.UTF_8);
 

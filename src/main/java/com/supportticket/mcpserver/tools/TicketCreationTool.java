@@ -3,6 +3,7 @@ package com.supportticket.mcpserver.tools;
 import com.supportticket.mcpserver.apiclient.TicketApiClient;
 import com.supportticket.mcpserver.dto.Ticket;
 import com.supportticket.mcpserver.exception.TicketCreationException;
+import com.supportticket.mcpserver.service.McpAccessService;
 import feign.FeignException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,14 +31,11 @@ public class TicketCreationTool {
     private static final Logger log = LoggerFactory.getLogger(TicketCreationTool.class);
 
     private final TicketApiClient ticketApiClient;
+    private final McpAccessService mcpAccessService;
 
-    /**
-     * Constructs the tool with the given Feign client.
-     *
-     * @param ticketApiClient client used to call the ticketing REST API
-     */
-    public TicketCreationTool(TicketApiClient ticketApiClient) {
+    public TicketCreationTool(TicketApiClient ticketApiClient, McpAccessService mcpAccessService) {
         this.ticketApiClient = ticketApiClient;
+        this.mcpAccessService = mcpAccessService;
     }
 
     /**
@@ -83,6 +81,7 @@ public class TicketCreationTool {
     ) {
 
         log.info("Ticket Creation Tool called");
+        mcpAccessService.requireToolAccess();
         Ticket request = new Ticket(
                 requestorName, ticketDescription, companyName,
                 priority, assigneeName, assigneeEmail,
