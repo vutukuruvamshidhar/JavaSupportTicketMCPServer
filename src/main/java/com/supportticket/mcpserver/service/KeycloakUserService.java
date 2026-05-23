@@ -22,6 +22,14 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Service that queries the Keycloak Admin REST API to look up realm users.
+ *
+ * <p>Uses the OAuth 2.0 client credentials flow to obtain a short-lived admin
+ * access token, then calls {@code GET /admin/realms/{realm}/users} with a
+ * {@code search} parameter. The caller is responsible for providing Keycloak
+ * coordinates via application properties.</p>
+ */
 @Service
 public class KeycloakUserService {
 
@@ -33,6 +41,15 @@ public class KeycloakUserService {
     private final String clientSecret;
     private final RestTemplate restTemplate;
 
+    /**
+     * Creates the service with the given Keycloak connection parameters.
+     *
+     * @param serverUrl    base URL of the Keycloak server (e.g. {@code http://localhost:8080})
+     * @param realm        the Keycloak realm to query
+     * @param clientId     client ID used for the client-credentials token request
+     * @param clientSecret client secret for the client-credentials token request
+     * @param restTemplate {@link RestTemplate} qualified as {@code keycloakRestTemplate}
+     */
     public KeycloakUserService(
             @Value("${keycloak.server-url}") String serverUrl,
             @Value("${keycloak.realm}") String realm,

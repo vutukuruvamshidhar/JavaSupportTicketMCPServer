@@ -27,6 +27,11 @@ public class SupportTicketResource {
 
     private final McpAccessService mcpAccessService;
 
+    /**
+     * Creates the resource provider with the given access-control service.
+     *
+     * @param mcpAccessService the service that enforces JWT-based access checks
+     */
     public SupportTicketResource(McpAccessService mcpAccessService) {
         this.mcpAccessService = mcpAccessService;
     }

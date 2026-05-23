@@ -33,6 +33,12 @@ public class TicketCreationTool {
     private final TicketApiClient ticketApiClient;
     private final McpAccessService mcpAccessService;
 
+    /**
+     * Creates the tool with the given API client and access-control service.
+     *
+     * @param ticketApiClient  the Feign client used to call the ticketing REST API
+     * @param mcpAccessService the service that enforces JWT-based access checks
+     */
     public TicketCreationTool(TicketApiClient ticketApiClient, McpAccessService mcpAccessService) {
         this.ticketApiClient = ticketApiClient;
         this.mcpAccessService = mcpAccessService;

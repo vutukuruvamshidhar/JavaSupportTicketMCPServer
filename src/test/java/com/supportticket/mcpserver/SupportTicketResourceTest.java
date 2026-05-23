@@ -19,6 +19,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.doThrow;
 
+/**
+ * Unit tests for {@link com.supportticket.mcpserver.resources.SupportTicketResource}.
+ *
+ * <p>Verifies access control enforcement and that the template content read from the
+ * classpath is returned correctly inside a {@link io.modelcontextprotocol.spec.McpSchema.ReadResourceResult}.
+ * No MCP server or Keycloak instance is required.</p>
+ */
 @ExtendWith(MockitoExtension.class)
 class SupportTicketResourceTest {
 

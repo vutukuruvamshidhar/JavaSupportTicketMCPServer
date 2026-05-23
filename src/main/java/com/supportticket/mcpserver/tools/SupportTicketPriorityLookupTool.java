@@ -11,11 +11,12 @@ import org.springaicommunity.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
 
 /**
- * MCP tool provider for support ticket operations.
+ * MCP tool that resolves the ticket priority for a given company name.
  *
- * <p>Exposes tools that an AI assistant can invoke during ticket workflows.
- * Each tool method is discovered and registered automatically by the MCP
- * annotation scanner at application startup.</p>
+ * <p>Looks up the company in the {@code CompanyPriority} database table and
+ * returns the configured numeric priority. If no entry is found the tool
+ * defaults to {@code 3} (MEDIUM). Access is guarded by
+ * {@link McpAccessService#requireToolAccess()}.</p>
  */
 @Component
 public class SupportTicketPriorityLookupTool {
@@ -25,6 +26,12 @@ public class SupportTicketPriorityLookupTool {
     private final SupportTicketRepo supportTicketRepo;
     private final McpAccessService mcpAccessService;
 
+    /**
+     * Creates the tool with the given repository and access-control service.
+     *
+     * @param supportTicketRepo the JPA repository for company-priority lookups
+     * @param mcpAccessService  the service that enforces JWT-based access checks
+     */
     public SupportTicketPriorityLookupTool(SupportTicketRepo supportTicketRepo,
                                             McpAccessService mcpAccessService) {
         this.supportTicketRepo = supportTicketRepo;

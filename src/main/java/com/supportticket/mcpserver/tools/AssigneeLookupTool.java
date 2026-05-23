@@ -31,12 +31,34 @@ public class AssigneeLookupTool {
     private final KeycloakUserService keycloakUserService;
     private final McpAccessService mcpAccessService;
 
+    /**
+     * Creates the tool with the given user service and access-control service.
+     *
+     * @param keycloakUserService service used to query Keycloak for matching users
+     * @param mcpAccessService    service that enforces JWT-based access checks
+     */
     public AssigneeLookupTool(KeycloakUserService keycloakUserService,
                                McpAccessService mcpAccessService) {
         this.keycloakUserService = keycloakUserService;
         this.mcpAccessService = mcpAccessService;
     }
 
+    /**
+     * Resolves a ticket assignee by first name.
+     *
+     * <p>Queries Keycloak for users matching the supplied first name. If exactly
+     * one user is found it is returned immediately. If multiple candidates exist
+     * the tool uses the MCP elicitation protocol to ask the user to pick the
+     * correct one. If no users are found an {@link IllegalArgumentException} is
+     * thrown.</p>
+     *
+     * @param assigneeName the first name of the assignee to look up
+     * @param context      the MCP request context, used to trigger elicitation
+     *                     when multiple candidates are found
+     * @return the resolved {@link Assignee}
+     * @throws IllegalArgumentException if no user with the given first name exists
+     * @throws IllegalStateException    if the elicitation is declined or cancelled
+     */
     @McpTool(
             name = "lookupAssignee",
             title = "Lookup Assignee",

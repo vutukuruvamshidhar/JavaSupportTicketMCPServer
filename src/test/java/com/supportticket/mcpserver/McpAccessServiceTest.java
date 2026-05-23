@@ -63,16 +63,16 @@ class McpAccessServiceTest {
     }
 
     // -----------------------------------------------------------------------
-    // Missing realm_access claim
+    // Missing resource_access claim
     // -----------------------------------------------------------------------
 
     @Test
-    void requireToolAccess_throws_whenRealmAccessClaimMissing() {
+    void requireToolAccess_throws_whenResourceAccessClaimMissing() {
         authenticateWith(buildJwt(null, Map.of("access_tools", "true")));
 
         assertThatThrownBy(service::requireToolAccess)
                 .isInstanceOf(AccessDeniedException.class)
-                .hasMessageContaining("realm_access");
+                .hasMessageContaining("resource_access");
     }
 
     // -----------------------------------------------------------------------
@@ -172,7 +172,10 @@ class McpAccessServiceTest {
                 .expiresAt(Instant.now().plusSeconds(300));
 
         if (roles != null) {
-            builder.claim("realm_access", Map.of("roles", roles));
+            // Mirrors Keycloak's client-role structure:
+            // resource_access.mcppocserver.roles
+            builder.claim("resource_access",
+                    Map.of("mcppocserver", Map.of("roles", roles)));
         }
         extraClaims.forEach(builder::claim);
         return builder.build();

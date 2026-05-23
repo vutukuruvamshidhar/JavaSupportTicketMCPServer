@@ -26,6 +26,11 @@ public class SupportTicketPrompts {
 
     private final McpAccessService mcpAccessService;
 
+    /**
+     * Creates the prompt provider with the given access-control service.
+     *
+     * @param mcpAccessService the service that enforces JWT-based access checks
+     */
     public SupportTicketPrompts(McpAccessService mcpAccessService) {
         this.mcpAccessService = mcpAccessService;
     }
